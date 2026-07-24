@@ -129,6 +129,27 @@ wait_for_lines "$SAY_TEXT" 1
 assert_eq "Codex 第一句。 Codex 第二句。" "$(tail -n 1 "$SAY_TEXT")" "codex notify speaks first two sentences"
 
 reset_say
+run_codex_notify "{\"type\":\"agent-turn-complete\",\"thread-id\":\"thread-123\",\"cwd\":\"$TMPDIR\",\"last-assistant-message\":\"已完成並保存路由。\"}"
+wait_for_lines "$SAY_TEXT" 1
+"$PYTHON" - "$VOXSHELL_HOME/active-codex-session.json" "$TMPDIR" <<'PY'
+import json
+import stat
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+state = json.loads(path.read_text(encoding="utf-8"))
+assert state["version"] == 1
+assert state["session_id"] == "thread-123"
+assert state["cwd"] == sys.argv[2]
+assert state["project_name"] == Path(sys.argv[2]).name
+assert isinstance(state["notified_at"], float)
+assert "last-assistant-message" not in state
+assert stat.S_IMODE(path.stat().st_mode) == 0o600
+PY
+printf 'ok - spoken Codex notify stores only private routing state\n'
+
+reset_say
 preview_output="$(run_preview $'完成修正。\n```python\nprint("skip")\n```\n測試通過。第三句。')"
 assert_eq "完成修正。 測試通過。" "$preview_output" "preview prints cleaned first two sentences"
 assert_no_say "preview never launches say"

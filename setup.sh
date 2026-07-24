@@ -64,4 +64,5 @@ else
 fi
 
 say_line "Setup complete." "安裝完成。"
-say_line "Start with: ./run.sh" "用 ./run.sh 啟動。"
+say_line "Start Codex push-to-talk with: ./run-ptt.sh" "用 ./run-ptt.sh 啟動 Codex Push-to-Talk。"
+say_line "Start the legacy conversation demo with: ./run.sh" "用 ./run.sh 啟動舊版語音對話示範。"

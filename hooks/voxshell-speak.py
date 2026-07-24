@@ -385,10 +385,10 @@ def stop_previous_speaker(home: Path) -> None:
         pass
 
 
-def start_say(script: str, config: dict, home: Path) -> None:
+def start_say(script: str, config: dict, home: Path) -> bool:
     say_cmd = shlex.split(os.environ.get("VOXSHELL_SAY_CMD", "say"))
     if not say_cmd:
-        return
+        return False
     command = say_cmd[:]
     if config.get("voice"):
         command.extend(["-v", config["voice"]])
@@ -409,6 +409,22 @@ def start_say(script: str, config: dict, home: Path) -> None:
         encoding="utf-8",
     )
     log_debug(home, "started say process")
+    return True
+
+
+def remember_codex_target(payload: dict, home: Path) -> None:
+    """Persist only routing metadata after Codex speech successfully starts."""
+    try:
+        from voxshell_state import remember_codex_session
+
+        if remember_codex_session(home, payload):
+            log_debug(home, "remembered active Codex session")
+        else:
+            log_debug(home, "Codex payload missing routing fields; target not saved")
+    except Exception:
+        # Speaking is the primary hook behavior. Routing-state failure must not
+        # block the agent or suppress an otherwise valid spoken result.
+        log_debug(home, "failed to remember active Codex session")
 
 
 def manual_mode(args, home: Path):
@@ -485,7 +501,9 @@ def main() -> int:
             log_debug(home, "short script empty; skip")
             return 0
 
-        start_say(script, config, home)
+        started = start_say(script, config, home)
+        if started and codex_notify:
+            remember_codex_target(payload, home)
     except Exception:
         return 0
     return 0

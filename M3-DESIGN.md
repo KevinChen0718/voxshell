@@ -1,5 +1,7 @@
 # voxshell M3 開發設計說明
 
+> 這是 read-aloud M3 的歷史設計紀錄。當時刻意不做 Push-to-Talk；後來新增的選用 Codex companion 以獨立設計與風險邊界實作，請以 [`docs/superpowers/specs/2026-07-25-voxshell-push-to-talk-design.md`](docs/superpowers/specs/2026-07-25-voxshell-push-to-talk-design.md) 為準。主要朗讀模式仍不需要麥克風或常駐 daemon。
+
 voxshell M2 是一個獨立的本機語音閒聊迴圈：`ffmpeg` 錄音、`faster-whisper` 轉文字、每輪啟動全新的 AI CLI、再用 macOS `say` 念出回覆。M3 的產品定位改成「給 CLI AI 裝上聲音」：不再另外開一個沒有專案脈絡的聊天迴圈，而是讓使用者正在工作的 Claude Code / Codex CLI / Gemini CLI session 在回覆結束後自動出聲。M2 管線保留為 demo mode，主產品價值改成「嘴巴」：透過各 CLI 的 lifecycle hook / notify 機制讀取剛完成的 assistant 回覆，清洗成適合朗讀的短稿，背景播放。
 
 ## 1. 嘴巴架構

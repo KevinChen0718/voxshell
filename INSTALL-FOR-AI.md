@@ -2,7 +2,7 @@
 
 This document is written for an AI assistant helping a person install voxshell. English comes first; a complete Traditional Chinese version follows.
 
-voxshell is a macOS read-aloud layer for CLI coding agents. After Codex or Claude Code finishes a turn, voxshell removes code and terminal noise, then speaks a short result with the built-in `say` command.
+voxshell is a macOS voice loop for coding agents. After Codex or Claude Code finishes a turn, voxshell removes code and terminal noise, then speaks a short result with the built-in `say` command. Codex users can optionally hold a global shortcut, speak the next instruction, and release to send it back to the latest spoken task.
 
 ---
 
@@ -10,7 +10,7 @@ voxshell is a macOS read-aloud layer for CLI coding agents. After Codex or Claud
 
 ### Your goal
 
-Help the user prove the speech pipeline works, review the exact configuration change, and install only the adapter they choose. Do not install the heavier microphone conversation demo unless the user explicitly asks for it.
+Help the user prove the speech pipeline works, review the exact configuration change, and install only the adapter they choose. Install the optional Push-to-Talk companion only when the user asks for voice follow-up. Do not install the separate legacy conversation demo unless the user explicitly asks for it.
 
 ### Safety rules
 
@@ -149,6 +149,32 @@ Only create `~/.voxshell/config.json` after asking the user about voice or rate:
 
 Use `say -v '?'` to list voices. Do not enable `summary_cmd` by default; it calls an external command for every completed turn and may consume quota.
 
+### Optional Codex Push-to-Talk
+
+Only offer this after the Codex notifier works end to end. Explain before installation that it adds a long-running local companion, listens only for the configured shortcut and `Esc`, and needs macOS Microphone and Accessibility permission.
+
+Install its dependencies:
+
+```bash
+./setup.sh
+```
+
+Explain that the first start may download the selected faster-whisper model once; transcription itself runs locally after that model is present.
+
+Start it:
+
+```bash
+./run-ptt.sh
+```
+
+The expected interaction is: hold `⌥ Space`, confirm the terminal displays the intended project, speak, and release to send immediately. `Esc` cancels while recording. If the shortcut conflicts with another app, choose a different one, for example:
+
+```bash
+./run-ptt.sh --hotkey control+shift+v
+```
+
+Never bypass macOS permission prompts. If Codex resume fails, keep the printed transcript available to the user and do not retry automatically.
+
 ### Uninstall
 
 Remove only the voxshell entry with the matching installer:
@@ -177,7 +203,7 @@ The first microphone use may trigger a macOS permission prompt. Never attempt to
 
 ### 你的目標
 
-先讓使用者親耳確認朗讀管線能動，再讓他看清楚設定會改什麼，最後只安裝他選擇的 Codex CLI／Claude Code 接頭。除非使用者明確要求，不要安裝較重的麥克風對話 demo。
+先讓使用者親耳確認朗讀管線能動，再讓他看清楚設定會改什麼，最後只安裝他選擇的 Codex CLI／Claude Code 接頭。只有使用者想用語音接著下指令時，才安裝選用的 Push-to-Talk companion；除非使用者另外要求，也不要啟動舊版麥克風對話 demo。
 
 ### 安全規則
 
@@ -313,6 +339,32 @@ python3 hooks/install_claude_hook.py
 ```
 
 用 `say -v '?'` 查看聲音。不要預設啟用 `summary_cmd`；它會在每輪結束後呼叫外部指令，可能消耗額度。
+
+### 選用的 Codex Push-to-Talk
+
+只在 Codex notifier 的端到端測試成功後提供。事前說清楚：它會啟動一個留在本機的常駐 companion，只辨識指定快捷鍵與 `Esc`，並需要 macOS 麥克風與「輔助使用」權限。
+
+安裝套件：
+
+```bash
+./setup.sh
+```
+
+先說明第一次啟動可能會下載一次所選的 faster-whisper 模型；模型到位後，轉錄會在本機完成。
+
+啟動：
+
+```bash
+./run-ptt.sh
+```
+
+請使用者按住 `⌥ Space`，確認終端機顯示正確專案名稱，說出指令後放開即送出；錄音時按 `Esc` 取消。若快捷鍵與其他 App 衝突，可改用例如：
+
+```bash
+./run-ptt.sh --hotkey control+shift+v
+```
+
+不可繞過 macOS 權限提示。若 Codex resume 失敗，保留畫面上印出的逐字稿給使用者，不可自動重試。
 
 ### 解除安裝
 

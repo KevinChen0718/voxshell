@@ -1,22 +1,19 @@
 # voxshell
 
-**Voice mode for CLI coding agents.** Let Codex or Claude Code finish the work in your terminal, then hear the useful part of the answer without switching back to read it.
+**Hear what your coding agent finished, then hold one key to tell it what to do next.**
 
-voxshell connects to an agent's turn-complete event, removes code blocks, tables, URLs, and path noise, keeps a short natural-language result, and speaks it with macOS `say`.
+voxshell connects to a coding agent's turn-complete event, removes code blocks, tables, URLs, and path noise, keeps a short natural-language result, and speaks it with macOS `say`. Its optional Codex Push-to-Talk companion turns the latest spoken result into a hands-free loop: hold `⌥ Space`, speak the next instruction, and release to send it back to that Codex task.
 
 ```text
-Codex notify / Claude Code Stop hook
-                  ↓
-          last assistant reply
-                  ↓
-        clean + shorten locally
-                  ↓
-              macOS say
+Codex finishes → voxshell speaks the useful result
+       ↑                         ↓
+same Codex task ← hold ⌥ Space and speak
 ```
 
-- No daemon and no account of its own
-- No audio recording in the main read-aloud mode
-- No API call by default
+- No daemon in the main read-aloud mode and no voxshell account
+- Microphone access only while the optional shortcut is held
+- No extra model call in the read-aloud path by default
+- Local transcription with faster-whisper
 - Safe installers that preview, back up, merge, and uninstall
 - Codex CLI and Claude Code adapters
 - macOS only for now
@@ -25,9 +22,9 @@ Codex notify / Claude Code Stop hook
 
 ## The problem
 
-Coding agents often spend minutes running tools while you move to another window or task. When they finish, the answer waits silently in the terminal. Generic text-to-speech reads too much: Markdown, code, paths, diffs, and test logs.
+Coding agents often spend minutes running tools while you move to another window or task. When they finish, the answer waits silently in the terminal. Generic text-to-speech reads too much: Markdown, code, paths, diffs, and test logs. Even after you hear a useful result, the next step normally means switching back and typing.
 
-voxshell gives the active coding session a small, selective voice. A newer answer interrupts only the previous voxshell speaker, so stale updates do not queue up.
+voxshell gives the active coding session a small, selective voice and an explicit Push-to-Talk return path. A newer answer interrupts only the previous voxshell speaker, so stale updates do not queue up.
 
 ## Try it in 30 seconds
 
@@ -50,6 +47,7 @@ Run the complete automated test suite:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 bash tests/test_speak.sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests/test_ptt.py
 ```
 
 ## Install for Codex CLI
@@ -77,6 +75,45 @@ Uninstall only the voxshell entry:
 ```bash
 python3 hooks/install_codex_notify.py --uninstall
 ```
+
+## Optional Codex Push-to-Talk
+
+Push-to-Talk is an opt-in companion for macOS. It needs an installed Codex CLI plus Microphone and Accessibility permission. The ordinary read-aloud hooks do not need either permission and remain daemonless.
+
+Install the local transcription and global-hotkey dependencies:
+
+```bash
+./setup.sh
+```
+
+The first Push-to-Talk start may download the selected faster-whisper model once. Transcription runs locally after the model is present.
+
+Start the companion and leave its terminal window open:
+
+```bash
+./run-ptt.sh
+```
+
+Then use this loop:
+
+1. Let a Codex task finish and be spoken by voxshell.
+2. Within 15 minutes, hold `⌥ Space`. The companion prints the locked project name.
+3. Speak the next instruction and release the keys to send immediately.
+4. Press `Esc` while still recording to cancel.
+
+The target is copied when recording starts. A newer Codex notification cannot redirect that recording. Empty audio, expired targets, transcription errors, and failed Codex resumes are never sent or retried. On resume failure, the transcript stays visible in the companion terminal for manual recovery.
+
+Choose another shortcut if `⌥ Space` conflicts with an existing app:
+
+```bash
+./run-ptt.sh --hotkey control+shift+v
+```
+
+Supported modifiers are `option`, `control`, `shift`, and `command`; the final key can be `space`, a letter, or a number.
+
+### Current Codex CLI limitation
+
+The resume route was verified with a real Codex session: external follow-ups keep the same session id, preserve persisted history, trigger the next notify, and do not lock the original TUI. However, an already-open interactive Codex CLI screen does not immediately reload an externally inserted turn into its in-memory transcript. Repeated Push-to-Talk turns see the full persisted history. Before returning to typing in that old TUI, exit and resume the task so its visible context is fresh.
 
 ## Install for Claude Code
 
@@ -173,8 +210,12 @@ The built-in pipeline:
 ## Privacy and safety
 
 - Main hook mode does not record microphone audio.
+- Push-to-Talk opens the microphone only while the configured shortcut is held.
+- Temporary audio is deleted after success, cancellation, empty input, transcription failure, expiry, and resume failure.
+- faster-whisper transcribes locally. The transcript goes only to the user's existing Codex CLI through stdin and is not added to process arguments or a voxshell log.
+- Routing state contains only session id, working directory, project name, and notification time. It is atomically written to `~/.voxshell/active-codex-session.json` with user-only permissions and expires after 15 minutes.
 - Cleaning, shortening, configuration, and speech happen locally.
-- No network request is made unless you explicitly configure `summary_cmd` or the coding agent itself uses a network service.
+- Main hook mode makes no network request unless you explicitly configure `summary_cmd` or the coding agent itself uses a network service. The first Push-to-Talk start may download its faster-whisper model.
 - Installers parse configuration, preserve unknown fields, create timestamped backups, avoid duplicate entries, and write atomically.
 - The Codex installer refuses to overwrite an existing third-party notifier.
 - The Claude and Codex adapters fail open so a speech problem cannot stop the agent.
@@ -185,6 +226,7 @@ The built-in pipeline:
 | Platform | Status | Integration |
 |---|---|---|
 | macOS + Codex CLI | Supported | top-level `notify` command |
+| macOS + Codex Push-to-Talk | Experimental v1 | global hold shortcut + local Whisper + `codex exec resume` |
 | macOS + Claude Code | Supported | `Stop` hook |
 | macOS manual demo | Supported | `--demo` and `--preview` |
 | Windows / Linux | Not yet | needs a cross-platform TTS backend |
@@ -217,10 +259,14 @@ The design record is in [M3-DESIGN.md](M3-DESIGN.md). A reusable hackathon descr
 
 ```text
 hooks/voxshell-speak.py          shared cleaning and speech pipeline
+hooks/voxshell_state.py          private atomic active-Codex routing state
 hooks/install_codex_notify.py    safe Codex config installer
 hooks/install_claude_hook.py     safe Claude settings installer
 hooks/summarize-with-codex.sh    optional summary command example
 tests/test_speak.sh              end-to-end tests with isolated temp config
+tests/test_ptt.py                routing, shortcut, cleanup, and resume tests
+ptt.py                           optional Codex Push-to-Talk companion
+run-ptt.sh                       virtual-environment launcher for ptt.py
 talk.py                          optional legacy microphone demo
 docs/submission-kit.md           reusable competition submission package
 ```
@@ -229,7 +275,8 @@ docs/submission-kit.md           reusable competition submission package
 
 - Cross-platform TTS backends
 - A supported Gemini CLI adapter
-- Optional push-to-talk into the active coding session
+- A first-party live-client injection route when Codex exposes one
+- A small native menu-bar UI and shortcut conflict detection
 - Smarter local summary-section detection without a model call
 
 ## License
@@ -241,6 +288,8 @@ MIT
 ## 繁體中文快速說明
 
 voxshell 會在 Codex 或 Claude Code 完成一輪工作後，自動取出最後回覆，拿掉程式碼、表格、網址與長路徑，只用 macOS `say` 念出前兩句有用的自然語言。主模式不錄音、預設不呼叫額外模型，也不會因為朗讀失敗卡住你的 coding agent。
+
+Codex 另有選用的 Push-to-Talk companion：先執行 `./setup.sh` 與 `./run-ptt.sh`，之後按住 `⌥ Space` 說下一步，放開就會直接送回最近由 voxshell 朗讀的 Codex task；錄音期間按 `Esc` 可取消。麥克風只在按住時開啟，音訊由 faster-whisper 本機轉錄並隨即刪除。
 
 先不用安裝，直接測試清洗結果：
 
